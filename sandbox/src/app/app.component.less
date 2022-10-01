@@ -1,0 +1,70 @@
+:host {
+    display: flex;
+    height : 100%;
+    width  : 100%;
+
+    .chart {
+        flex : 1 1 auto;
+        width: 0;
+    }
+
+    .settings {
+        padding       : 16px;
+        display       : flex;
+        flex-direction: column;
+        flex          : 0 0 300px;
+
+        &.ng-invalid {
+
+            &.size .size>label,
+            &.rangeX .axis-x>label,
+            &.rangeY .axis-y>label {
+                color: red;
+            }
+        }
+
+        >* {
+            padding-top: 16px;
+        }
+
+        .size {
+            display: flex;
+
+            >label {
+                flex         : 0 0 auto;
+                padding-right: 16px;
+            }
+
+            >input {
+                flex: 1 1 auto;
+            }
+        }
+
+        .type {
+            display        : flex;
+            justify-content: space-around;
+        }
+
+        .axis-x label,
+        .axis-y label {
+            display       : block;
+            padding-bottom: 4px;
+        }
+
+        .range {
+            display: flex;
+
+            input {
+                flex: 1 1 auto;
+
+                &:first-child {
+                    padding-right: 8px;
+                }
+
+                &:last-child {
+                    padding-left: 8px;
+                }
+            }
+        }
+    }
+}

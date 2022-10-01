@@ -1,0 +1,47 @@
+<canvas #canvas 
+        class="chart"
+>
+  Ваш браузер не поддерживает элемент canvas
+</canvas>
+<form class="settings" [formGroup]="form" [ngClass]="form.errors || {}">
+  <div class="size">
+    <label id="size">Кол-во точек:</label>
+    <input for="size" type="number" formControlName="size">
+  </div>
+  <div class="type">
+    <div>
+      <input type="radio" 
+             id="sin"
+             name="type"
+             [value]="types.sin" 
+             formControlName="type"
+      >
+      <label for="sin">Синусоида</label>
+    </div>
+    
+    <div>
+      <input type="radio" 
+            id="custom"
+            name="type" 
+            [value]="types.custom" 
+            formControlName="type"
+      >
+      <label for="custom">Произвольный</label> 
+    </div>
+       
+  </div>
+  <div class="axis-x">
+    <label>Размер оси абсцисс (X):</label>
+    <div class="range">
+      <input type="number" formControlName="fromX">
+      <input type="number" formControlName="toX">
+    </div>
+  </div>
+  <div class="axis-y">
+    <label>Размер оси ординат (Y):</label>
+    <div class="range">
+      <input type="number" formControlName="fromY">
+      <input type="number" formControlName="toY">
+    </div>
+  </div>
+</form>
