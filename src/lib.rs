@@ -32,12 +32,16 @@ pub enum ExampleKind {
 pub struct LChart {
     gl: WebGlRenderingContext,
     program: ProgramInfo,
+    indices: Vec<u16>,
+    vertexes: Vec<f32>,
 }
 
 #[derive(Debug, Clone)]
 struct ProgramInfo {
     shader_program: WebGlProgram,
     vertex_position_ptr: u32,
+    buffer_vertex: WebGlBuffer, 
+    buffer_indices: WebGlBuffer,
 }
 
 #[wasm_bindgen]
@@ -69,21 +73,27 @@ impl LChart {
         let program_info = {
             let vertex_position_ptr =
                 gl.get_attrib_location(&shader_program, "aVertexPosition") as u32;
+            let Buffers(buffer_vertex, buffer_indexes) = create_buffers(gl)?;
             ProgramInfo {
                 shader_program,
                 vertex_position_ptr,
+                buffer_vertex,
+                buffer_indices: buffer_indexes,
             }
-        };
-
-        // Here's where we call the routine that builds all the
-        // objects we'll be drawing.
-        init_buffers(gl)?;
+        };        
 
         gl.clear_color(1.0, 0.0, 0.0, 1.0);
 
         let chart = LChart {
             gl: gl.clone(),
             program: program_info,
+            indices: vec![0,1,2,3],
+            vertexes: vec![
+                -0.5, -0.5, 0.0, 
+                -0.5, 0.5, 0.0, 
+                0.5, 0.5, 0.0, 
+                0.5, -0.5, 0.0,
+            ],
         };
 
         chart.draw()?;
@@ -98,6 +108,8 @@ impl LChart {
 
         gl.use_program(Some(&program.shader_program));
         gl.enable_vertex_attrib_array(program.vertex_position_ptr);
+        
+        self.init_buffers(&self.indices, &self.vertexes)?;
 
         // draw
         let canvas: web_sys::HtmlCanvasElement = gl
@@ -117,9 +129,44 @@ impl LChart {
         // отрисовка примитивов - линий
         gl.draw_elements_with_i32(
             WebGlRenderingContext::LINE_STRIP,
-            6, // indexBuffer.numberOfItems,
+            self.indices.len() as i32, // indexBuffer.numberOfItems,
             WebGlRenderingContext::UNSIGNED_SHORT,
             0,
+        );
+        Ok(())
+    }
+
+    fn init_buffers(&self, indices: &[u16], positions: &[f32]) -> Result<(), JsValue> {
+        let gl = &self.gl;
+        let program = self.program.clone();
+        // Select the positionBuffer as the one to apply buffer
+        // operations to from here out.
+        gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&program.buffer_vertex));
+    
+        let position_array = float_32_array!(positions);
+        // Now pass the list of positions into WebGL to build the
+        // shape. We do this by creating a Float32Array from the
+        // Rust array, then use it to fill the current buffer.
+        gl.buffer_data_with_array_buffer_view(
+            WebGlRenderingContext::ARRAY_BUFFER,
+            &position_array,
+            WebGlRenderingContext::STATIC_DRAW,
+        );
+    
+        
+        gl.bind_buffer(
+            WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+            Some(&program.buffer_indices),
+        );
+    
+        // This array defines each face as two triangles, using the
+        // indices into the vertex array to specify each triangle's
+        // position.
+        let index_array = uint_16_array!(indices);
+        gl.buffer_data_with_array_buffer_view(
+            WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+            &index_array,
+            WebGlRenderingContext::STATIC_DRAW,
         );
         Ok(())
     }
@@ -162,7 +209,7 @@ fn initShaderProgram(
 }
 
 #[allow(non_snake_case)]
-fn init_buffers(gl: &WebGlRenderingContext) -> Result<Buffers, JsValue> {
+fn create_buffers(gl: &WebGlRenderingContext) -> Result<Buffers, JsValue> {
     // Create a buffer for the vertex positions
     let position_buffer = gl
         .create_buffer()
@@ -170,42 +217,46 @@ fn init_buffers(gl: &WebGlRenderingContext) -> Result<Buffers, JsValue> {
 
     // Select the positionBuffer as the one to apply buffer
     // operations to from here out.
-    gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&position_buffer));
+    // gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&position_buffer));
 
     // Now create an array of positions
-    let positions: [f32; 12] = [
-        -0.5, -0.5, 0.0, -0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, -0.5, 0.0,
-    ];
-    let position_array = float_32_array!(positions);
+    // let positions: [f32; 12] = [
+    //     -0.5, -0.5, 0.0, 
+    //     -0.5, 0.5, 0.0, 
+    //     0.5, 0.5, 0.0, 
+    //     0.5, -0.5, 0.0,
+    // ];
+    // let position_array = float_32_array!(positions);
     // Now pass the list of positions into WebGL to build the
     // shape. We do this by creating a Float32Array from the
     // Rust array, then use it to fill the current buffer.
-    gl.buffer_data_with_array_buffer_view(
-        WebGlRenderingContext::ARRAY_BUFFER,
-        &position_array,
-        WebGlRenderingContext::STATIC_DRAW,
-    );
+    // gl.buffer_data_with_array_buffer_view(
+    //     WebGlRenderingContext::ARRAY_BUFFER,
+    //     &position_array,
+    //     WebGlRenderingContext::STATIC_DRAW,
+    // );
 
     // Build the element array buffer; this specifies the indices
     // into the vertex arrays for each face's vertices.
     let index_buffer = gl
         .create_buffer()
         .ok_or("failed to create indexBuffer buffer")?;
-    gl.bind_buffer(
-        WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
-        Some(&index_buffer),
-    );
+    // gl.bind_buffer(
+    //     WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+    //     Some(&index_buffer),
+    // );
 
     // This array defines each face as two triangles, using the
     // indices into the vertex array to specify each triangle's
     // position.
-    let indices: [u16; 6] = [0, 1, 2, 0, 3, 2];
-    let index_array = uint_16_array!(indices);
-    gl.buffer_data_with_array_buffer_view(
-        WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
-        &index_array,
-        WebGlRenderingContext::STATIC_DRAW,
-    );
+    // let indices: [u16; 6] = [0, 1, 2, 0, 3, 2];
+    // let indices: [u16; 4] = [0, 1, 2, 3];
+    // let index_array = uint_16_array!(indices);
+    // gl.buffer_data_with_array_buffer_view(
+    //     WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+    //     &index_array,
+    //     WebGlRenderingContext::STATIC_DRAW,
+    // );
     Ok(Buffers(position_buffer, index_buffer))
 }
 
