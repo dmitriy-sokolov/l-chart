@@ -29,7 +29,10 @@ pub enum ExampleKind {
 }
 
 #[wasm_bindgen]
-pub struct LChart {}
+pub struct LChart {
+    gl: WebGlRenderingContext,
+    program: ProgramInfo,
+}
 
 #[derive(Debug, Clone)]
 struct ProgramInfo {
@@ -39,37 +42,7 @@ struct ProgramInfo {
 
 #[wasm_bindgen]
 impl LChart {
-    pub fn new() -> Self {
-        LChart {}
-    }
-
-    pub fn test(
-        &self,
-        gl: &WebGlRenderingContext,
-        kind: ExampleKind,
-        point_count: usize,
-        from_x: f32,
-        to_x: f32,
-        from_y: f32,
-        to_y: f32,
-    ) -> Result<(), JsValue> {
-        let delta = (to_x - from_x) / ((point_count - 1) as f32);
-        let mut x = from_x;
-        let mut points = Vec::<f32>::with_capacity(2 * point_count);
-        while (x < to_x) {
-            points.push(x);
-            points.push(x.sin());
-            x = x + delta;
-        }
-        points.push(to_x);
-        points.push(to_x.sin());
-        alert(&format!("Delta is {}, count is {}", delta, points.len()));
-        Ok(())
-    }
-
-    pub fn draw(&self, gl: &WebGlRenderingContext) -> Result<(), JsValue> {
-        // gl.viewport(0, 0, 400, 300);
-
+    pub fn new(gl: &WebGlRenderingContext) -> Result<LChart, JsValue> {
         // Vertex shader program
         let vsSource = r#"
             attribute vec3 aVertexPosition;
@@ -104,13 +77,27 @@ impl LChart {
 
         // Here's where we call the routine that builds all the
         // objects we'll be drawing.
-        let buffers: Buffers = init_buffers(gl)?;
+        init_buffers(gl)?;
 
         gl.clear_color(1.0, 0.0, 0.0, 1.0);
 
+        let chart = LChart {
+            gl: gl.clone(),
+            program: program_info,
+        };
+
+        chart.draw()?;
+        
+        Ok(chart)
+    }
+
+    fn draw(&self) -> Result<(), JsValue> {
+        let gl = &self.gl;
+        let program = self.program.clone();
         // Tell WebGL to use our program when drawing
-        gl.use_program(Some(&program_info.shader_program));
-        gl.enable_vertex_attrib_array(program_info.vertex_position_ptr);
+
+        gl.use_program(Some(&program.shader_program));
+        gl.enable_vertex_attrib_array(program.vertex_position_ptr);
 
         // draw
         let canvas: web_sys::HtmlCanvasElement = gl
@@ -120,7 +107,7 @@ impl LChart {
         gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
         gl.vertex_attrib_pointer_with_i32(
-            program_info.vertex_position_ptr, // shaderProgram.vertexPositionAttribute,
+            program.vertex_position_ptr, // shaderProgram.vertexPositionAttribute,
             3,                                // vertexBuffer.itemSize,
             WebGlRenderingContext::FLOAT,
             false,
@@ -134,7 +121,30 @@ impl LChart {
             WebGlRenderingContext::UNSIGNED_SHORT,
             0,
         );
-        // alert(&format!("Hello"));
+        Ok(())
+    }
+
+    pub fn test(
+        &self,
+        kind: ExampleKind,
+        point_count: usize,
+        from_x: f32,
+        to_x: f32,
+        from_y: f32,
+        to_y: f32,
+    ) -> Result<(), JsValue> {
+        let delta = (to_x - from_x) / ((point_count - 1) as f32);
+        let mut x = from_x;
+        let mut points = Vec::<f32>::with_capacity(2 * point_count);
+        while (x < to_x) {
+            points.push(x);
+            points.push(x.sin());
+            x = x + delta;
+        }
+        points.push(to_x);
+        points.push(to_x.sin());
+        self.draw();
+        // alert(&format!("Delta is {}, count is {}", delta, points.len()));
         Ok(())
     }
 }

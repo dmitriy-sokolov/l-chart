@@ -51,16 +51,7 @@ export class AppComponent implements AfterViewInit, OnDestroy, OnInit {
       takeUntil(this.destroy$),
       filter(_ => !this.form.errors)
     )
-      .subscribe((e: IViewModel) => {
-        if (this.chart) {
-          if (e.type === ChartType.custom) {
-            this.chart.test(this.gl!, ExampleKind.Custom, e.size, e.fromX!, e.toX!, e.fromY!, e.toY!);
-          } else {
-            this.chart.test(this.gl!, ExampleKind.Sin, e.size, 0, 2 * Math.PI, -1, 1);
-          }
-        }
-        console.log('value is', e);
-      });
+      .subscribe((e: IViewModel) => this.applyModel(e));
     this.form.controls.type.valueChanges.subscribe((type: ChartType) => {
       switch (type) {
         case ChartType.sin:
@@ -107,6 +98,16 @@ export class AppComponent implements AfterViewInit, OnDestroy, OnInit {
     });
   }
 
+  private applyModel(source: IViewModel): void {
+    if (this.chart) {
+      if (source.type === ChartType.custom) {
+        this.chart.test(ExampleKind.Custom, source.size, source.fromX!, source.toX!, source.fromY!, source.toY!);
+      } else {
+        this.chart.test(ExampleKind.Sin, source.size, 0, 2 * Math.PI, -1, 1);
+      }
+    }
+  }
+
   private checkMode(control: AbstractControl): ValidationErrors | null {
     const value: IViewModel = control.value;
     let result: ValidationErrors | null = value.size < 2
@@ -142,25 +143,9 @@ export class AppComponent implements AfterViewInit, OnDestroy, OnInit {
     this.canvas.nativeElement.height = this.canvas.nativeElement.clientHeight;
 
     this.gl = this.canvas.nativeElement.getContext("webgl")!;
-    // if (gl) {
-    //   // установка размеров области рисования
-    //   // Set the WebGL context to be the full size of the canvas
-    //   gl.viewport(0, 0, this.canvas.nativeElement.width, this.canvas.nativeElement.height);
-
-    //   console.log(this.canvas.nativeElement.width, this.canvas.nativeElement.height);
-    //   // установка шейдеров 
-    //   const idx = this.initShaders(gl);
-
-    //   // установка буфера вершин
-    //   this.initBuffers(gl);
-    //   // покрасим в красный цвет фон
-    //   gl.clearColor(1.0, 0.0, 0.0, 1.0);
-    //   // отрисовка сцены
-    //   this.draw(gl, idx);
-    // }
-
-    this.chart = LChart.new();
-    this.chart.draw(this.gl);
+    this.chart = LChart.new(this.gl!);
+    // this.chart.draw(this.gl!);
+    // this.applyModel(this.form.value);
   }
 
   public ngOnDestroy(): void {
@@ -170,96 +155,6 @@ export class AppComponent implements AfterViewInit, OnDestroy, OnInit {
     }
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  private initShaders(
-    gl: WebGLRenderingContext
-  ): number {
-    const vertexShader = gl.createShader(gl.VERTEX_SHADER)!;
-    gl.shaderSource(vertexShader,
-      `attribute vec3 aVertexPosition;
-        void main(void) {
-          gl_Position = vec4(aVertexPosition, 1.0);
-        }`);
-    // компилируем шейдер
-    gl.compileShader(vertexShader);
-
-    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)!;
-    gl.shaderSource(fragmentShader,
-      `void main(void) {
-          gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-        }`);
-    // компилируем шейдер
-    gl.compileShader(fragmentShader);
-
-    //создаем объект программы шейдеров
-    const shaderProgram = gl.createProgram()!;
-
-    // прикрепляем к ней шейдеры
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-
-    // связываем программу с контекстом webgl
-    gl.linkProgram(shaderProgram);
-
-    gl.useProgram(shaderProgram);
-    // установка атрибута программы
-    const vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-    // подключаем атрибут для использования
-    gl.enableVertexAttribArray(vertexPositionAttribute);
-    return vertexPositionAttribute;
-  }
-
-  // установка буфера вершин 
-  private initBuffers(
-    gl: WebGLRenderingContext
-  ): void {
-    const vertices = [
-      -0.5, -0.5, 0.0,
-      -0.5, 0.5, 0.0,
-      0.5, 0.5, 0.0,
-      0.5, -0.5, 0.0
-    ];
-
-    const indices = [0, 1, 2, 0, 3, 2];
-
-    // установка буфера вершин
-    const vertexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-
-    // создание буфера индексов
-    const indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-  }
-
-  // отрисовка 
-  private draw(
-    gl: WebGLRenderingContext,
-    idx: number
-  ): void {
-    // установка области отрисовки
-    gl.viewport(0, 0, this.canvas.nativeElement.width, this.canvas.nativeElement.height);
-
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    // указываем, что каждая вершина имеет по три координаты (x, y, z)
-    gl.vertexAttribPointer(
-      idx, // shaderProgram.vertexPositionAttribute,
-      3, // vertexBuffer.itemSize,
-      gl.FLOAT,
-      false,
-      0,
-      0
-    );
-    // отрисовка примитивов - линий
-    gl.drawElements(
-      gl.LINES,
-      6, // indexBuffer.numberOfItems,
-      gl.UNSIGNED_SHORT,
-      0
-    );
   }
 }
 
