@@ -10,7 +10,7 @@ use web_sys::{WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlUniformLoca
 
 #[allow(dead_code)]
 mod utils;
-use utils::{compile_shader, link_program, set_panic_hook};
+use utils::{compile_shader, link_program};
 
 #[derive(Debug, Clone)]
 struct Buffers(WebGlBuffer, WebGlBuffer);
@@ -42,7 +42,7 @@ struct ProgramInfo {
     shader_program: WebGlProgram,
     vertex_position_ptr: u32,
     u_matrix: Result<WebGlUniformLocation, String>,
-    buffer_vertex: WebGlBuffer, 
+    buffer_vertex: WebGlBuffer,
     buffer_indices: WebGlBuffer,
 }
 
@@ -50,7 +50,7 @@ struct ProgramInfo {
 impl LChart {
     pub fn new(gl: &WebGlRenderingContext) -> Result<LChart, JsValue> {
         // Vertex shader program
-        let vsSource = r#"
+        let vs_source = r#"
             attribute vec2 a_position;
 
             uniform mat3 u_matrix;
@@ -60,7 +60,7 @@ impl LChart {
         "#;
 
         // Fragment shader program
-        let fsSource = r#"
+        let fs_source = r#"
             void main(void) {
                 gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
             }
@@ -68,11 +68,10 @@ impl LChart {
 
         // Initialize a shader program; this is where all the lighting
         // for the vertices and so forth is established.
-        let shader_program = initShaderProgram(gl, vsSource, fsSource)?;
+        let shader_program = initShaderProgram(gl, vs_source, fs_source)?;
 
         let program_info = {
-            let vertex_position_ptr =
-                gl.get_attrib_location(&shader_program, "a_position") as u32;
+            let vertex_position_ptr = gl.get_attrib_location(&shader_program, "a_position") as u32;
             let Buffers(buffer_vertex, buffer_indexes) = create_buffers(gl)?;
             let u_matrix = gl
                 .get_uniform_location(&shader_program, "u_matrix")
@@ -84,29 +83,20 @@ impl LChart {
                 buffer_indices: buffer_indexes,
                 u_matrix,
             }
-        };        
+        };
 
         gl.clear_color(1.0, 0.0, 0.0, 1.0);
 
         let chart = LChart {
             gl: gl.clone(),
             program: program_info,
-            indices: vec![0,1,2,3],
-            vertexes: vec![
-                -0.5, -0.5,  
-                -0.5, 0.5,  
-                0.5, 0.5, 
-                0.5, -0.5, 
-            ],
-            matrix: vec![
-                1.0, 0.0, 0.0,
-                0.0, 1.0, 0.0,
-                0.0, 0.0, 1.0,
-            ],
+            indices: vec![],
+            vertexes: vec![],
+            matrix: vec![],
         };
 
         // chart.draw()?;
-        
+
         Ok(chart)
     }
 
@@ -117,7 +107,7 @@ impl LChart {
 
         gl.use_program(Some(&program.shader_program));
         gl.enable_vertex_attrib_array(program.vertex_position_ptr);
-        
+
         self.init_buffers(&self.indices, &self.vertexes)?;
 
         // draw
@@ -129,17 +119,13 @@ impl LChart {
         gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
         gl.vertex_attrib_pointer_with_i32(
             program.vertex_position_ptr, // shaderProgram.vertexPositionAttribute,
-            2,                                // vertexBuffer.itemSize,
+            2,                           // vertexBuffer.itemSize,
             WebGlRenderingContext::FLOAT,
             false,
             0,
             0,
         );
-        gl.uniform_matrix3fv_with_f32_array(
-            Some(&program.u_matrix?),
-            false,
-            &self.matrix,
-        );
+        gl.uniform_matrix3fv_with_f32_array(Some(&program.u_matrix?), false, &self.matrix);
         // отрисовка примитивов - линий
         gl.draw_elements_with_i32(
             WebGlRenderingContext::LINE_STRIP,
@@ -155,8 +141,11 @@ impl LChart {
         let program = self.program.clone();
         // Select the positionBuffer as the one to apply buffer
         // operations to from here out.
-        gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&program.buffer_vertex));
-    
+        gl.bind_buffer(
+            WebGlRenderingContext::ARRAY_BUFFER,
+            Some(&program.buffer_vertex),
+        );
+
         let position_array = float_32_array!(positions);
         // Now pass the list of positions into WebGL to build the
         // shape. We do this by creating a Float32Array from the
@@ -166,13 +155,12 @@ impl LChart {
             &position_array,
             WebGlRenderingContext::STATIC_DRAW,
         );
-    
-        
+
         gl.bind_buffer(
             WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
             Some(&program.buffer_indices),
         );
-    
+
         // This array defines each face as two triangles, using the
         // indices into the vertex array to specify each triangle's
         // position.
@@ -187,7 +175,7 @@ impl LChart {
 
     pub fn test(
         &mut self,
-        kind: ExampleKind,
+        _kind: ExampleKind,
         point_count: usize,
         from_x: f32,
         to_x: f32,
@@ -197,22 +185,27 @@ impl LChart {
         let delta = (to_x - from_x) / ((point_count - 1) as f32);
         let mut x = from_x;
         let mut points = Vec::<f32>::with_capacity(2 * point_count);
-        while (x < to_x) {
+        while x < to_x {
             points.push(x);
             points.push(x.sin());
-            x = x + delta;
+            x += delta;
         }
         points.push(to_x);
         points.push(to_x.sin());
         self.matrix = vec![
-            2.0 / (to_x - from_x), 0.0, 0.0,
-            0.0, -2.0 / (to_y - from_y), 0.0,
-            -1.0 - from_x, -1.0 - from_y, 1.0
+            2.0 / (to_x - from_x),
+            0.0,
+            0.0,
+            0.0,
+            -2.0 / (to_y - from_y),
+            0.0,
+            -1.0 - from_x,
+            -1.0 - from_y,
+            1.0,
         ];
-        self.indices = points.iter().enumerate().map(|(i,x)| i as u16).collect();
+        self.indices = points.iter().enumerate().map(|(i, _)| i as u16).collect();
         self.vertexes = points;
-        self.draw();
-        // alert(&format!("Delta is {}, count is {}", delta, points.len()));
+        self.draw()?;
         Ok(())
     }
 }
@@ -236,48 +229,12 @@ fn create_buffers(gl: &WebGlRenderingContext) -> Result<Buffers, JsValue> {
         .create_buffer()
         .ok_or("failed to create positionBuffer buffer")?;
 
-    // Select the positionBuffer as the one to apply buffer
-    // operations to from here out.
-    // gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&position_buffer));
-
-    // Now create an array of positions
-    // let positions: [f32; 12] = [
-    //     -0.5, -0.5, 0.0, 
-    //     -0.5, 0.5, 0.0, 
-    //     0.5, 0.5, 0.0, 
-    //     0.5, -0.5, 0.0,
-    // ];
-    // let position_array = float_32_array!(positions);
-    // Now pass the list of positions into WebGL to build the
-    // shape. We do this by creating a Float32Array from the
-    // Rust array, then use it to fill the current buffer.
-    // gl.buffer_data_with_array_buffer_view(
-    //     WebGlRenderingContext::ARRAY_BUFFER,
-    //     &position_array,
-    //     WebGlRenderingContext::STATIC_DRAW,
-    // );
-
     // Build the element array buffer; this specifies the indices
     // into the vertex arrays for each face's vertices.
     let index_buffer = gl
         .create_buffer()
         .ok_or("failed to create indexBuffer buffer")?;
-    // gl.bind_buffer(
-    //     WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
-    //     Some(&index_buffer),
-    // );
 
-    // This array defines each face as two triangles, using the
-    // indices into the vertex array to specify each triangle's
-    // position.
-    // let indices: [u16; 6] = [0, 1, 2, 0, 3, 2];
-    // let indices: [u16; 4] = [0, 1, 2, 3];
-    // let index_array = uint_16_array!(indices);
-    // gl.buffer_data_with_array_buffer_view(
-    //     WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
-    //     &index_array,
-    //     WebGlRenderingContext::STATIC_DRAW,
-    // );
     Ok(Buffers(position_buffer, index_buffer))
 }
 

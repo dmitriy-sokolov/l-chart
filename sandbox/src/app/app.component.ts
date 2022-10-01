@@ -144,8 +144,7 @@ export class AppComponent implements AfterViewInit, OnDestroy, OnInit {
 
     this.gl = this.canvas.nativeElement.getContext("webgl")!;
     this.chart = LChart.new(this.gl!);
-    // this.chart.draw(this.gl!);
-    // this.applyModel(this.form.value);
+    this.applyModel(this.form.value);
   }
 
   public ngOnDestroy(): void {
