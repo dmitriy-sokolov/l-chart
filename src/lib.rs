@@ -6,7 +6,7 @@ extern crate web_sys;
 use js_sys::WebAssembly;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGlBuffer, WebGlProgram, WebGlRenderingContext};
+use web_sys::{WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlUniformLocation};
 
 #[allow(dead_code)]
 mod utils;
@@ -34,12 +34,14 @@ pub struct LChart {
     program: ProgramInfo,
     indices: Vec<u16>,
     vertexes: Vec<f32>,
+    matrix: Vec<f32>,
 }
 
 #[derive(Debug, Clone)]
 struct ProgramInfo {
     shader_program: WebGlProgram,
     vertex_position_ptr: u32,
+    u_matrix: Result<WebGlUniformLocation, String>,
     buffer_vertex: WebGlBuffer, 
     buffer_indices: WebGlBuffer,
 }
@@ -49,9 +51,11 @@ impl LChart {
     pub fn new(gl: &WebGlRenderingContext) -> Result<LChart, JsValue> {
         // Vertex shader program
         let vsSource = r#"
-            attribute vec3 aVertexPosition;
+            attribute vec2 a_position;
+
+            uniform mat3 u_matrix;
             void main(void) {
-                gl_Position = vec4(aVertexPosition, 1.0);
+                gl_Position = vec4(u_matrix * vec3(a_position, 1.0), 1.0);
             }
         "#;
 
@@ -66,19 +70,19 @@ impl LChart {
         // for the vertices and so forth is established.
         let shader_program = initShaderProgram(gl, vsSource, fsSource)?;
 
-        // Collect all the info needed to use the shader program.
-        // Look up which attributes our shader program is using
-        // for aVertexPosition, aVevrtexColor and also
-        // look up uniform locations.
         let program_info = {
             let vertex_position_ptr =
-                gl.get_attrib_location(&shader_program, "aVertexPosition") as u32;
+                gl.get_attrib_location(&shader_program, "a_position") as u32;
             let Buffers(buffer_vertex, buffer_indexes) = create_buffers(gl)?;
+            let u_matrix = gl
+                .get_uniform_location(&shader_program, "u_matrix")
+                .ok_or_else(|| String::from("cannot get u_matrix"));
             ProgramInfo {
                 shader_program,
                 vertex_position_ptr,
                 buffer_vertex,
                 buffer_indices: buffer_indexes,
+                u_matrix,
             }
         };        
 
@@ -89,14 +93,19 @@ impl LChart {
             program: program_info,
             indices: vec![0,1,2,3],
             vertexes: vec![
-                -0.5, -0.5, 0.0, 
-                -0.5, 0.5, 0.0, 
-                0.5, 0.5, 0.0, 
-                0.5, -0.5, 0.0,
+                -0.5, -0.5,  
+                -0.5, 0.5,  
+                0.5, 0.5, 
+                0.5, -0.5, 
+            ],
+            matrix: vec![
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0,
             ],
         };
 
-        chart.draw()?;
+        // chart.draw()?;
         
         Ok(chart)
     }
@@ -120,11 +129,16 @@ impl LChart {
         gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
         gl.vertex_attrib_pointer_with_i32(
             program.vertex_position_ptr, // shaderProgram.vertexPositionAttribute,
-            3,                                // vertexBuffer.itemSize,
+            2,                                // vertexBuffer.itemSize,
             WebGlRenderingContext::FLOAT,
             false,
             0,
             0,
+        );
+        gl.uniform_matrix3fv_with_f32_array(
+            Some(&program.u_matrix?),
+            false,
+            &self.matrix,
         );
         // отрисовка примитивов - линий
         gl.draw_elements_with_i32(
@@ -172,7 +186,7 @@ impl LChart {
     }
 
     pub fn test(
-        &self,
+        &mut self,
         kind: ExampleKind,
         point_count: usize,
         from_x: f32,
@@ -190,6 +204,13 @@ impl LChart {
         }
         points.push(to_x);
         points.push(to_x.sin());
+        self.matrix = vec![
+            2.0 / (to_x - from_x), 0.0, 0.0,
+            0.0, -2.0 / (to_y - from_y), 0.0,
+            -1.0 - from_x, -1.0 - from_y, 1.0
+        ];
+        self.indices = points.iter().enumerate().map(|(i,x)| i as u16).collect();
+        self.vertexes = points;
         self.draw();
         // alert(&format!("Delta is {}, count is {}", delta, points.len()));
         Ok(())
